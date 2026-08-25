@@ -28,7 +28,15 @@ HOST_PORT = 5434
 
 DATABASE = "quarantinez"
 USER = "quarantinez"
-PASSWORD = "quarantinez"
+
+#: The container's credential, and the suffix is a convention rather than decoration. This is a
+#: throwaway database bound to the loopback interface, holding rows a test wrote a moment ago,
+#: and the same value is in `compose.yaml` where anyone can read it. Writing `-demo` into the
+#: value says that in the one place a scanner and a reader both look. The portfolio's own
+#: pre-push gate flags any `password = "..."` longer than five characters unless the value says
+#: what it is, and it is right to: a scanner cannot tell a throwaway from a real one, so the
+#: value has to.
+PASSWORD = "quarantinez-demo"
 
 URL_VAR = "QUARANTINEZ_POSTGRES_URL"
 
