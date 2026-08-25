@@ -23,10 +23,10 @@ pytestmark = pytest.mark.services
 
 
 def test_the_declared_endpoint_answers_and_is_the_declared_database() -> None:
-    with psycopg.connect(control_store.ControlStore.from_env().url, autocommit=True) as conn:
-        with conn.cursor() as cursor:
-            cursor.execute("select current_database(), current_user")
-            row = cursor.fetchone()
+    url = control_store.ControlStore.from_env().url
+    with psycopg.connect(url, autocommit=True) as conn, conn.cursor() as cursor:
+        cursor.execute("select current_database(), current_user")
+        row = cursor.fetchone()
     assert row is not None
     assert row[0] == control_store.DATABASE
     assert row[1] == control_store.USER
