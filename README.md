@@ -209,6 +209,20 @@ every other test still passed and the demonstration printed a run in which nothi
 **The venue is simulated** and has no wire format. What is modelled is the shape of the
 misbehaviour, which is the part that reaches the state machine.
 
+## What was decided, and what was rejected
+
+Six records under [`docs/adr/`](docs/adr/), because an absence is harder to review than an
+addition: nothing in a diff points at the thing that is not there.
+
+| | |
+|---|---|
+| [0001](docs/adr/0001-unknown-is-absorbing.md) | why an unconfirmed outcome is terminal, and what the transient version costs |
+| [0002](docs/adr/0002-no-timing-anywhere.md) | why nothing here sleeps, and why an absent answer is a value rather than an exception |
+| [0003](docs/adr/0003-one-row.md) | why the breaker and the position cannot be two rows |
+| [0004](docs/adr/0004-crash-consistency-not-exactly-once.md) | what this proves, and the neighbouring property it deliberately does not |
+| [0005](docs/adr/0005-a-fixture-not-a-generator.md) | why the marks are written down rather than generated |
+| [0006](docs/adr/0006-bought-on-the-argument-not-on-demand.md) | the reach admission, in full |
+
 ## Limitations
 
 **Nothing here is production.** No real users, no operational history, no system anyone depends
