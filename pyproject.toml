@@ -37,6 +37,7 @@ dev = [
     "mypy>=1.11",
     "pyyaml>=6",
     "types-PyYAML>=6",
+    "psycopg[binary]>=3.2",
 ]
 
 [tool.hatch.build.targets.wheel]
