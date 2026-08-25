@@ -1,0 +1,64 @@
+[project]
+name = "quarantinez"
+version = "0.1.0"
+description = "An execution control plane where an unconfirmable outcome is a terminal state."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Quelin Zammit" }]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Financial and Insurance Industry",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+]
+
+# Empty, and here it is an argument rather than an omission. This repository is deliberately
+# thin on dependencies because everything interesting in it is a PROPERTY rather than an
+# integration: an absorbing state, a decision that survives a process dying, an obligation with
+# a deadline. A dependency arrives in the commit that first imports it.
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/PNX89/QUARANTINEZ"
+Source = "https://github.com/PNX89/QUARANTINEZ"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "pyyaml>=6",
+    "types-PyYAML>=6",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/quarantinez"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# The services suite is DESELECTED rather than skipped, and run in its own job against a real
+# PostgreSQL. A skipped test reports as a pass and nobody reads it.
+addopts = "-q -m 'not services'"
+markers = [
+    "services: needs the container compose.yaml brings up. Run with -m services.",
+]
+filterwarnings = ["error"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.mypy]
+files = ["src", "tests"]
+strict = true

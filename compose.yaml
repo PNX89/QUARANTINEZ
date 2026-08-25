@@ -1,0 +1,33 @@
+# The one service this repository needs. No cache, no vector extension, no message broker:
+# the control state is a row in PostgreSQL and the proof is that it survives the process dying.
+#
+#   docker compose up -d        bring it up
+#   docker compose down -v      take it down and discard the state
+#
+# PUBLISHED ON 5434, NOT 5433. The convention across this toolset is one port above the
+# service's own default, so that cloning a repository cannot collide with something the reader
+# already runs. QUIZZ took 5433 under that rule, and two repositories in the same toolset that
+# cannot be brought up at the same time is a worse outcome than a second number, so this takes
+# the next one and says why.
+#
+# BOUND TO THE LOOPBACK INTERFACE. Compose publishes on every interface by default, measured
+# rather than assumed, and a laptop on a shared network would otherwise be offering this to it.
+#
+# NO NAMED VOLUME, on purpose. Every row here is control state a test creates and asserts on.
+# Durable state between runs would only ever be state that had drifted from the test that made
+# it, and the crash proof creates its own.
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: quarantinez
+      POSTGRES_PASSWORD: quarantinez
+      POSTGRES_DB: quarantinez
+    ports:
+      - "127.0.0.1:5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quarantinez -d quarantinez"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
