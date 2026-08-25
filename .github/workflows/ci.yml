@@ -37,7 +37,7 @@ jobs:
         image: postgres:17-alpine
         env:
           POSTGRES_USER: quarantinez
-          POSTGRES_PASSWORD: quarantinez
+          POSTGRES_PASSWORD: quarantinez-demo
           POSTGRES_DB: quarantinez
         ports:
           - 5434:5432
