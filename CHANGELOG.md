@@ -5,6 +5,31 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- `durable_control.write` commits. A psycopg connection is not autocommit by default, so the
+  UPDATE used to sit in an open transaction that a kill discarded, and the crash proof held only
+  because the crash child passed `autocommit=True`. The child now connects with no flags, so the
+  proof is made on the connection an ordinary caller makes.
+- `durable_control.step` advances the stored peak, as `marks.running_peak` already did for the
+  in-memory walk. The peak was frozen at whatever `start` inserted, so a decline from any high
+  reached afterwards was measured from the opening level and could not trip the breaker: a fall
+  of 20 per cent off a new high read as 4 per cent against a 10 per cent limit.
+- `venue.classify` has four branches that no venue could reach, so each could return the wrong
+  event with the suite green. Four ordinary behaviours now reach them: a refusal on submission, a
+  refusal in answer to a status query, an acknowledgement that says the order is still held, and
+  a submission nobody acknowledged. They are not misbehaviours and are not in `MISBEHAVIOURS`.
+- The README's dependency count. It said one third-party package and named the driver; three are
+  imported anywhere in the tree, and the page now counts and names them.
+
+### Changed
+
+- `docs/STATE_MACHINE.md` is written by `scripts/capture_evidence.py`, which is what its own
+  header had claimed since it was committed. `tests/test_states.py` now requires the committed
+  table to equal `render_table()` exactly, so the document and the machine cannot disagree.
+
 ## [0.1.0] - 2026-08-26
 
 ### Added

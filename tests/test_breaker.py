@@ -7,6 +7,10 @@ anything about wall-clock behaviour that it has not measured.
 
 from __future__ import annotations
 
+import os
+import sys
+from collections.abc import Iterator, Mapping
+
 import pytest
 
 from quarantinez.breaker import (
@@ -99,11 +103,12 @@ def test_flattening_after_the_window_does_not_un_miss_it() -> None:
 
 
 def test_the_decision_is_a_pure_function_of_what_is_stored() -> None:
-    """The property the crash proof rests on.
+    """The property the crash proof rests on, as far as running it twice can show.
 
     A process killed before writing a decision can be restarted, given the same stored inputs,
-    and must produce the identical decision. That only holds if nothing here reads a clock, an
-    environment variable or a global of its own, so it is asserted rather than assumed.
+    and must produce the identical decision. Two adjacent calls catch anything that changes
+    between them, which is a clock and little else. The test below carries the rest of it, and
+    the docstring here used to claim that rest without asserting it.
     """
     arguments = dict(
         limits=LIMITS,
@@ -118,6 +123,65 @@ def test_the_decision_is_a_pure_function_of_what_is_stored() -> None:
     first = decide(**arguments)  # type: ignore[arg-type]
     second = decide(**arguments)  # type: ignore[arg-type]
     assert first == second
+
+
+def test_the_decision_reads_nothing_but_the_arguments_it_was_given() -> None:
+    """The half of the purity claim that two identical calls cannot see.
+
+    An environment variable does not change between two adjacent calls, and neither does a module
+    global, so equality above rules out neither. The crash proof cannot see them either: the child
+    inherits the parent's environment, so a recomputation after the kill agrees by construction.
+    A single line adding `os.environ.get("FUDGE")` to the decline tripped a ten per cent breaker
+    on a one per cent decline with all ninety-one tests green.
+
+    Checked by naming every global these two functions resolve, because that is the door all
+    three arrive through: an environment variable needs `os`, a clock needs `time`, and a global
+    of its own needs the global. Any of them shows up here as a name that is not on this list.
+    """
+    module = vars(sys.modules[decide.__module__])
+    referenced = set(decide.__code__.co_names) | set(drawdown_of.__code__.co_names)
+    resolved = {name for name in referenced if name in module}
+    assert resolved == {"drawdown_of", "Decision", "Breaker", "Obligation"}, (
+        f"the decision now reads {sorted(resolved)} out of its own module. It is a pure function "
+        "of its arguments or the crash proof is a coincidence, and it cannot be both."
+    )
+
+
+class Hostile(Mapping[str, str]):
+    """An environment that answers nothing and says who asked.
+
+    Substituted for `os.environ` rather than filled with a value, because filling it only catches
+    a variable whose name the test guessed. Anything reaching the environment at all, by any
+    name and through any import, arrives here.
+    """
+
+    def __getitem__(self, key: str) -> str:
+        raise AssertionError(f"the decision read the environment variable {key!r}")
+
+    def __iter__(self) -> Iterator[str]:
+        raise AssertionError("the decision walked the environment")
+
+    def __len__(self) -> int:
+        raise AssertionError("the decision measured the environment")
+
+
+def test_the_decision_never_reaches_for_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The named property that neither the equality above nor the crash proof can see.
+
+    An environment variable is constant across two adjacent calls, so equality says nothing about
+    it, and the crash child inherits its parent's environment, so a recomputation after the kill
+    agrees by construction. One line adding `os.environ.get("FUDGE")` to the decline tripped a ten
+    per cent breaker on a one per cent decline with the whole suite green.
+    """
+    monkeypatch.setattr(os, "environ", Hostile())
+    try:
+        outcome = step(mark=88.0, position=5)
+    finally:
+        # Put it back before anything else runs. pytest's own reporting reads the environment,
+        # so a window wider than the call under test fails on the test runner rather than on it.
+        monkeypatch.undo()
+    assert outcome.breaker is Breaker.TRIPPED
+    assert outcome.drawdown == pytest.approx(0.12)
 
 
 def test_the_clock_refuses_to_run_backwards() -> None:

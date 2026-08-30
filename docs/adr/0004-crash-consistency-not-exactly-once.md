@@ -26,14 +26,25 @@ The decision is a pure function of what is stored. That is the whole mechanism:
 
 There is no third place to be, so no interleaving produces a state the next start disagrees with.
 
+**The second bullet is a claim about a commit, and the commit is `write`'s own.** A psycopg
+connection is not autocommit by default, so an UPDATE on its own leaves the decision inside an
+open transaction that a kill discards: the process would be killed after writing and the work
+would not be done, which is precisely the third place this argument says does not exist. Until it
+was fixed the whole proof rested on one flag in the crash child rather than on anything in the
+module, and a caller who connected the ordinary way silently lost every decision. The connection
+in the crash child now carries no flags for that reason, so the demonstration is made on the
+connection an ordinary caller makes.
+
 ## Why the purity test earns its place
 
 It would be easy to read `decide` and conclude it reads nothing else, and easy for that to stop
 being true in a later change that nobody connects to a crash test in a different file.
 
 So the coupling is demonstrated rather than described: giving the decision a clock of its own
-breaks four tests across two files, both crash tests and the purity test itself. That is why the
-purity test is not decorative.
+breaks both crash tests, the committed demonstration output, and the tests that say it reads
+nothing but its arguments. An environment variable or a global of its own breaks only those last
+tests, because a crash child inherits its parent's environment and a recomputation after the kill
+therefore agrees by construction. That is why they are not decorative.
 
 ## What was rejected
 

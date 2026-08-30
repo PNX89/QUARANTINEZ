@@ -93,6 +93,57 @@ def test_a_crash_after_the_write_leaves_the_same_state_as_a_clean_run(
     assert crashed == cleanly, "where the process died changed where the state ended up"
 
 
+def test_a_step_on_a_connection_made_the_ordinary_way_lands_where_others_can_see_it(
+    fresh: psycopg.Connection[tuple[object, ...]],
+) -> None:
+    """The durability has to belong to the module, not to the flag the caller happened to pass.
+
+    Every crash test here connects in autocommit, so none of them can see a `write` that never
+    commits: the UPDATE would sit in an open transaction, `step` would return TRIPPED, and the
+    next start would still read ARMED. This connects the ordinary way, closes without committing
+    the way a killed process does, and asks a second connection what actually landed.
+    """
+    ordinary = psycopg.connect(control_store.ControlStore.from_env().url)
+    assert not ordinary.autocommit, "this proves nothing unless the connection is the default one"
+    try:
+        decided = durable_control.step(
+            ordinary, ACCOUNT, LIMITS, mark=MARK, position=POSITION, now=NOW
+        )
+    finally:
+        ordinary.close()
+
+    landed = durable_control.read(fresh, ACCOUNT)
+    assert landed is not None, "the row vanished"
+    assert landed.breaker is decided.breaker, "the decision never left the writer's transaction"
+    assert landed.obligation is decided.obligation
+    assert landed.deadline == decided.deadline
+
+
+def test_the_breaker_trips_on_a_decline_from_a_high_reached_after_the_start(
+    fresh: psycopg.Connection[tuple[object, ...]],
+) -> None:
+    """The stored peak has to run, or the breaker measures every fall from the opening level.
+
+    The row opens at 100. A mark of 120 is a new high and the 96 after it is a 20 per cent
+    decline from that high, twice the limit. Against a peak frozen where `start` left it the same
+    fall reads as 4 per cent and nothing trips. No other test here presents the case: they all
+    open at 100 and only ever offer 88, which is below it either way.
+    """
+    durable_control.step(fresh, ACCOUNT, LIMITS, mark=120.0, position=POSITION, now=NOW)
+    high = durable_control.read(fresh, ACCOUNT)
+    assert high is not None
+    assert high.peak_mark == 120.0, "the stored peak never moved off the level start() inserted"
+
+    decision = durable_control.step(fresh, ACCOUNT, LIMITS, mark=96.0, position=POSITION, now=NOW)
+    assert decision.drawdown == pytest.approx((120.0 - 96.0) / 120.0)
+    assert decision.breaker is Breaker.TRIPPED, "a fall off a new high did not reach the limit"
+    assert decision.obligation is Obligation.OPEN
+
+    after = durable_control.read(fresh, ACCOUNT)
+    assert after is not None
+    assert after.peak_mark == 120.0, "the peak followed the mark down instead of holding the high"
+
+
 def test_the_breaker_and_the_position_are_the_same_row(
     fresh: psycopg.Connection[tuple[object, ...]],
 ) -> None:

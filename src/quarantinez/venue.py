@@ -24,6 +24,14 @@ repository makes no claim about latency, and a simulated wait would look like on
 NO PROTOCOL. There is no wire format here, no session layer, and no vocabulary borrowed from any
 real venue's specification. What is modelled is the shape of the misbehaviour, which is the part
 that reaches the state machine.
+
+THE BEHAVIOURS BELOW THE MISBEHAVIOURS ARE ORDINARY ONES. A venue that refuses an order, one that
+answers a status query with a refusal, one that says only that it is still working, and one that
+answers a submission with nothing whatsoever are all things a venue does. They are here because
+`classify` has a branch for each and no venue could reach any of them: four branches of the
+interpretation layer could each return the wrong event with the whole suite green. They are
+deliberately NOT in `MISBEHAVIOURS`, which is the set of four the transcript and the front page
+are built on and which each end somewhere nobody can confirm.
 """
 
 from __future__ import annotations
@@ -182,8 +190,71 @@ class FillsAQuantityNobodySent:
         return Fill(venue_id=venue_id, quantity=order.quantity + 1)
 
 
+@dataclass
+class RejectsOnSubmission:
+    """Refuses the order outright. Not a misbehaviour: a refusal is an answer."""
+
+    name: str = "rejects on submission"
+
+    def submit(self, order: Order) -> list[Reply]:
+        return [Rejection(reason="outside the band this venue accepts")]
+
+    def status(self, venue_id: str) -> Reply:
+        return NoAnswer()
+
+
+@dataclass
+class RejectsAfterAcknowledging:
+    """Takes the order, then answers the status query with a refusal."""
+
+    name: str = "rejects after acknowledging"
+
+    def submit(self, order: Order) -> list[Reply]:
+        return [Acknowledgement(venue_id=f"V-{order.client_id}")]
+
+    def status(self, venue_id: str) -> Reply:
+        return Rejection(reason="withdrawn before it rested")
+
+
+@dataclass
+class StillWorkingWhenAsked:
+    """Acknowledges, and the status query says only that the order is still held.
+
+    The one answer that is neither an outcome nor a misbehaviour, and the control plane records
+    it as such rather than waiting: asking again is the polling this repository argues against.
+    """
+
+    name: str = "still working when asked"
+
+    def submit(self, order: Order) -> list[Reply]:
+        return [Acknowledgement(venue_id=f"V-{order.client_id}")]
+
+    def status(self, venue_id: str) -> Reply:
+        return Acknowledgement(venue_id=venue_id)
+
+
+@dataclass
+class SaysNothingAtAll:
+    """The submission produced no reply whatsoever.
+
+    Not the same shape as accepting and then going quiet, and it is kept out of `MISBEHAVIOURS`
+    because it lands on SILENCE too, so as a fifth entry it would add a transcript line and no
+    new distinction. It is here because it is the only way to reach the branch that reads a
+    submission nobody acknowledged.
+    """
+
+    name: str = "says nothing at all"
+
+    def submit(self, order: Order) -> list[Reply]:
+        return []
+
+    def status(self, venue_id: str) -> Reply:
+        return NoAnswer()
+
+
 #: Every misbehaviour, in a fixed order, so a transcript can be regenerated identically and a
-#: reader can find the scenario a test names.
+#: reader can find the scenario a test names. Four, and the four that end unconfirmed: the
+#: ordinary behaviours above are not in here and the front page's count depends on that.
 MISBEHAVIOURS: tuple[type, ...] = (
     AcceptsThenGoesQuiet,
     AcknowledgesTwice,
