@@ -8,6 +8,8 @@ UNKNOWN reach FILLED, however indirectly and however many hops away, fails it.
 
 from __future__ import annotations
 
+import pathlib
+
 import pytest
 
 from quarantinez.states import (
@@ -21,6 +23,9 @@ from quarantinez.states import (
     render_table,
     transition,
 )
+
+REPO = pathlib.Path(__file__).resolve().parent.parent
+STATE_MACHINE = REPO / "docs" / "STATE_MACHINE.md"
 
 
 def reachable(start: State) -> set[State]:
@@ -115,8 +120,32 @@ def test_each_way_a_venue_misbehaves_leads_to_unknown_from_both_live_states() ->
 
 
 def test_the_rendered_table_describes_the_machine_this_code_implements() -> None:
-    """The committed artefact is generated, so it cannot drift into describing something else."""
+    """Every edge is rendered, and nothing else is.
+
+    The row count is exact rather than a lower bound. It used to be `count("|") > 3 * len(TABLE)`,
+    which is 76 against 42 and slack enough for whole rows to go missing underneath it.
+    """
     rendered = render_table()
     for (state, event), target in TABLE.items():
         assert f"| {state.value} | {event.value} | {target.value} |" in rendered
-    assert rendered.count("|") > 3 * len(TABLE)
+    heading, separator = 1, 1
+    expected = heading + separator + len(TABLE) + len(TERMINAL)
+    assert len(rendered.splitlines()) == expected, "the rendering gained or lost a row"
+
+
+def test_the_committed_document_holds_exactly_the_table_this_code_renders() -> None:
+    """The document's own header promises this test exists, so here it is.
+
+    Equality rather than containment, and this is the difference that matters. A containment
+    check passes with an extra row appended to the document, and an invented row out of UNKNOWN
+    is the single thing this repository exists to say cannot happen. Until this test was written
+    nothing in the tree read the file at all: it could state the opposite of the headline claim
+    and the build stayed green.
+    """
+    committed = [
+        line for line in STATE_MACHINE.read_text("utf-8").splitlines() if line.startswith("|")
+    ]
+    assert "\n".join(committed) == render_table(), (
+        "docs/STATE_MACHINE.md no longer holds the table this code renders. Regenerate it with "
+        "scripts/capture_evidence.py rather than editing it."
+    )

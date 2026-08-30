@@ -9,6 +9,8 @@ Two instants matter and both are tested. Dying BEFORE the write leaves the row u
 next start reads the same inputs and, because the decision is a pure function of them, computes
 the same decision. Dying AFTER the write means the work is already done. There is no third place
 to be, which is the whole of the argument.
+
+The connection below is made with no flags on purpose. See the comment on it.
 """
 
 from __future__ import annotations
@@ -31,7 +33,10 @@ NOW = 1_000.0
 
 def main(argv: list[str]) -> int:
     url, mode = argv[1], argv[2]
-    with psycopg.connect(url, autocommit=True) as connection:
+    # Connected the ordinary way, with no autocommit flag, because that is the connection an
+    # ordinary caller makes and the claim has to hold for it. Passing autocommit here would put
+    # the durability in the harness and leave the module free to lose the write.
+    with psycopg.connect(url) as connection:
         if mode == "before-write":
             durable_control.step(
                 connection,

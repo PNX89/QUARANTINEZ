@@ -140,7 +140,9 @@ def render_table() -> str:
     """The machine as text, for the document that sits beside it.
 
     Generated rather than typed, so the committed artefact cannot describe a machine this code
-    does not implement. `tests/test_states.py` compares the two.
+    does not implement. `scripts/capture_evidence.py` writes the document from this and
+    `tests/test_states.py` requires the two to be equal, which for a while the document said was
+    happening while nothing in the tree read it at all.
     """
     lines = ["| from | on | to |", "|---|---|---|"]
     for state in State:
