@@ -74,6 +74,7 @@ def test_the_restart_after_that_crash_reaches_the_state_the_crash_was_going_to_w
     assert restarted.breaker is Breaker.TRIPPED
     assert restarted.obligation is Obligation.OPEN
     assert restarted.deadline == NOW + LIMITS.flatten_within
+    assert restarted.decided_at == NOW, "decided_at is the only record of when this was decided"
 
 
 def test_a_crash_after_the_write_leaves_the_same_state_as_a_clean_run(

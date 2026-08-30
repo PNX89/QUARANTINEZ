@@ -65,8 +65,9 @@ def test_total() -> int:
 
     `-o addopts=` neutralises this repository's own options, which otherwise print per-file
     totals instead of the line this parses. It also drops the `-m "not services"` deselection,
-    so the number counts EVERY test including the fourteen that need a container. That is the
-    right number for a card: they run, in their own job, on every push.
+    so the number counts EVERY test including the ones that need a container. That is the right
+    number for a card: they run, in their own job, on every push. No count of them is written
+    here, because that count changes with the test suite and nothing regenerates a docstring.
     """
     out = run(sys.executable, "-m", "pytest", "-o", "addopts=", "--collect-only", "-q")
     match = re.search(r"^(\d+) tests? collected", out, re.MULTILINE)

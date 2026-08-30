@@ -17,7 +17,6 @@ from __future__ import annotations
 import importlib.util
 import pathlib
 import re
-import sqlite3  # noqa: F401  (kept out of use; the fixture below needs no database)
 import subprocess
 import sys
 
