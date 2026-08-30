@@ -43,10 +43,12 @@ enumerable instead of something a reader has to take on trust.
 ```
 
 **This repository is deliberately thin on dependencies, because everything interesting in it is a
-property rather than an integration.** There is one third-party package in the whole tree and it
-is the database driver. What is being shown is a state that cannot be escaped, a decision that
-survives the process dying, and an obligation that cannot be un-missed, and none of those is
-something you install.
+property rather than an integration.** The runtime dependency list is empty. Three third-party
+libraries are imported anywhere in the tree, and they are the test runner, the PostgreSQL driver
+the crash proof needs, and PyYAML, which one test uses to read `compose.yaml` rather than restate
+its port. What is being shown is a state that cannot be escaped, a decision that survives the
+process dying, and an obligation that cannot be un-missed, and none of those is something you
+install.
 
 ## The state that has no way out
 
@@ -156,8 +158,11 @@ The child sends itself `SIGKILL`, which no `finally` block and no buffered write
 what is claimed is about the row that is in the database after the process stops existing.
 
 **The coupling is proved rather than asserted.** Giving the decision a clock of its own breaks
-four tests across two files: both crash tests and the purity test that exists to explain why they
-hold. That is what makes the purity test worth having rather than decorative.
+both crash tests, the committed demonstration output, and the tests that exist to say it reads
+nothing but its arguments. Giving it an environment variable or a global of its own breaks only
+those last tests, and that is exactly why they are there: a killed process leaves a child that
+inherits the same environment, so the crash proof agrees with itself either way and cannot see
+them.
 
 This is a crash consistency proof, and it is deliberately **not** the exactly-once proof a sibling
 repository in this toolset makes. That one shows a paid effect happens once and is never

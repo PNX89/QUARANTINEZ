@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 
 from quarantinez.control import ControlPlane
-from quarantinez.states import Event, State
+from quarantinez.states import TABLE, Event, State
 from quarantinez.venue import (
     MISBEHAVIOURS,
     AcceptsThenGoesQuiet,
@@ -18,11 +18,25 @@ from quarantinez.venue import (
     AnswersAboutSomethingElse,
     FillsAQuantityNobodySent,
     Order,
+    RejectsAfterAcknowledging,
+    RejectsOnSubmission,
     Reply,
+    SaysNothingAtAll,
+    StillWorkingWhenAsked,
     WellBehaved,
 )
 
 ORDER = Order(client_id="C-1", symbol="SYNTH", quantity=10)
+
+#: The behaviours that are not misbehaviours, each with the answer it has to produce. Written out
+#: by name rather than read off the module, so deleting one makes this table wrong instead of
+#: quietly making the suite cover one case fewer.
+ORDINARY: dict[type, tuple[Event, State]] = {
+    RejectsOnSubmission: (Event.REJECTED, State.REJECTED),
+    RejectsAfterAcknowledging: (Event.REJECTED, State.REJECTED),
+    StillWorkingWhenAsked: (Event.ACKNOWLEDGED, State.WORKING),
+    SaysNothingAtAll: (Event.SILENCE, State.UNKNOWN),
+}
 
 
 def test_a_venue_that_behaves_produces_a_confirmed_outcome() -> None:
@@ -51,6 +65,38 @@ def test_each_misbehaviour_is_classified_as_itself_rather_than_as_a_timeout() ->
     }
     for behaviour, event in expected.items():
         assert ControlPlane().place(behaviour(), ORDER).event is event
+
+
+def test_every_branch_of_the_interpretation_layer_is_reached_by_some_venue() -> None:
+    """Four branches of `classify` had nothing that could reach them, so all four were free.
+
+    Each of the four returned a value no test compared to anything: a refusal on submission, a
+    refusal in answer to a status query, an acknowledgement that says only that the order is
+    still held, and a submission nobody acknowledged. Each one could return any event at all and
+    the whole suite stayed green. The four venues below are the four that reach them.
+    """
+    assert len(ORDINARY) == 4, "a branch of the interpretation layer lost the venue that reaches it"
+    for behaviour, (event, state) in ORDINARY.items():
+        outcome = ControlPlane().place(behaviour(), ORDER)
+        assert outcome.event is event, behaviour.__name__
+        assert outcome.state is state, behaviour.__name__
+
+
+def test_every_event_the_table_names_is_one_a_venue_can_actually_produce() -> None:
+    """The half `test_every_event_is_used_somewhere_in_the_table` cannot check.
+
+    That test reads the keys of TABLE and compares them to the Event enum, which is the table
+    against itself. This runs the venues and compares what they emit to what the machine claims
+    to accept. Two events sat in the table, in the README diagram and in the generated document
+    while nothing in the tree emitted either of them.
+
+    QUARANTINED_BY_PERSON is excluded by name: it is the one event a venue cannot cause, which
+    is the whole point of it.
+    """
+    venues = (WellBehaved, *MISBEHAVIOURS, *ORDINARY)
+    produced = {ControlPlane().place(behaviour(), ORDER).event for behaviour in venues}
+    from_a_venue = {event for _, event in TABLE} - {Event.QUARANTINED_BY_PERSON}
+    assert from_a_venue <= produced, f"no venue produces {sorted(from_a_venue - produced)}"
 
 
 def test_the_replies_survive_into_the_outcome() -> None:

@@ -13,9 +13,11 @@ position row says flat is a control plane that will act on one of them.
 WHY THE PROOF WORKS AT ALL. `quarantinez.breaker.decide` is a pure function of what is stored. A
 process killed after deciding and before writing has changed nothing, and the next start reads
 the same inputs and computes the same decision. A process killed after writing has already
-finished. There is no third place to be, so there is no interleaving that produces a state the
-next start disagrees with, and `tests/test_durable_control.py` kills at both points and requires
-the identical final row.
+finished, which is true only because `write` commits rather than trusting the caller to have
+connected in autocommit: a durability guarantee that depends on a flag somebody else passed is
+not a guarantee this module makes. There is no third place to be, so there is no interleaving
+that produces a state the next start disagrees with, and `tests/test_durable_control.py` kills at
+both points and requires the identical final row.
 
 That is why the purity of `decide` is asserted in its own test rather than left as a comment.
 The moment it reads a clock of its own, this claim becomes false and nothing else here changes.
@@ -108,17 +110,26 @@ def write(
     account: str,
     decision: Decision,
     *,
+    peak_mark: float,
     mark: float,
     position: int,
     now: float,
 ) -> None:
-    """One statement, one row. There is no moment where half of this has landed."""
+    """One statement, one row, and the commit that makes the row a fact.
+
+    The commit belongs here rather than to the caller. A psycopg connection is not autocommit by
+    default, so an UPDATE on its own sits in an open transaction that a SIGKILL discards: this
+    function would return, the claim above would say the work is done, and every other connection
+    including the next start would still read the previous decision. Leaving it to the caller
+    made the whole proof a property of the flag the test harness happened to pass.
+    """
     with connection.cursor() as cursor:
         cursor.execute(
-            "update control set position = %s, mark = %s, breaker = %s, obligation = %s, "
-            "deadline = %s, decided_at = %s where account = %s",
+            "update control set position = %s, peak_mark = %s, mark = %s, breaker = %s, "
+            "obligation = %s, deadline = %s, decided_at = %s where account = %s",
             (
                 position,
+                peak_mark,
                 mark,
                 decision.breaker.value,
                 decision.obligation.value,
@@ -127,6 +138,7 @@ def write(
                 account,
             ),
         )
+    connection.commit()
 
 
 def step(
@@ -149,9 +161,15 @@ def step(
     if row is None:
         raise LookupError(f"no control row for {account!r}. Call start() first.")
 
+    # The peak runs, which is what `marks.running_peak` does for the in-memory demonstration and
+    # what `drawdown_of` means by a peak. A stored peak that never moved would measure every
+    # later decline from whatever level the account was opened at, so a fall off a high reached
+    # afterwards could not trip the breaker however deep it went.
+    peak_mark = max(row.peak_mark, mark)
+
     decision = decide(
         limits=limits,
-        peak_mark=row.peak_mark,
+        peak_mark=peak_mark,
         mark=mark,
         position=position,
         breaker=row.breaker,
@@ -163,5 +181,13 @@ def step(
     if callable(before_write):
         before_write()
 
-    write(connection, account, decision, mark=mark, position=position, now=now)
+    write(
+        connection,
+        account,
+        decision,
+        peak_mark=peak_mark,
+        mark=mark,
+        position=position,
+        now=now,
+    )
     return decision
