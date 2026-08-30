@@ -88,6 +88,19 @@ def test_an_impossible_transition_raises_rather_than_returning_the_same_state() 
     with pytest.raises(NoSuchTransition) as raised:
         transition(State.FILLED, Event.ACKNOWLEDGED)
     assert "FILLED" in str(raised.value) and "ACKNOWLEDGED" in str(raised.value)
+    assert "terminal" in str(raised.value), "a terminal state must name itself as the reason"
+
+
+def test_an_impossible_transition_from_a_live_state_names_the_other_reason() -> None:
+    """The other half of `NoSuchTransition`'s explanation: a live state, no such pairing.
+
+    Without this, the branch that picks between the two explanations could be inverted and
+    every existing test would still pass, since none of them reads which reason was given.
+    """
+    with pytest.raises(NoSuchTransition) as raised:
+        transition(State.PENDING, Event.QUARANTINED_BY_PERSON)
+    assert "not in the table" in str(raised.value)
+    assert "terminal" not in str(raised.value)
 
 
 def test_every_state_is_reachable_from_where_an_order_starts() -> None:
